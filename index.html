@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SyncSpace Calendar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: #f8fafc;
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+        }
+        .calendar-day {
+            min-height: 120px;
+        }
+        /* Custom scrollbar for better look */
+        .day-events::-webkit-scrollbar {
+            width: 4px;
+        }
+        .day-events::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 20px;
+        }
+        .day-events::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        /* Hide controls when logged out */
+        .logged-out .user-controls {
+            display: none;
+        }
+         .modal {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <!-- Header -->
+    <header class="bg-white shadow-md p-4 flex justify-between items-center sticky top-0 z-40">
+        <div>
+            <h1 class="text-xl md:text-2xl font-bold text-indigo-600">SyncSpace Calendar</h1>
+            <p id="lastUpdated" class="text-xs text-gray-500">อัปเดตล่าสุด: -</p>
+        </div>
+        <div class="flex items-center space-x-2 md:space-x-4">
+            <!-- Auth Buttons -->
+            <div id="authContainer">
+                <!-- Logged In View -->
+                <div id="loggedInView" class="hidden items-center space-x-2">
+                     <div class="flex items-center space-x-2">
+                        <span class="font-semibold text-sm hidden md:inline">ผู้ใช้:</span>
+                        <span id="usernameDisplay" class="text-sm text-gray-600 font-bold"></span>
+                    </div>
+                    <button id="adminToolsBtn" class="hidden p-2 rounded-full hover:bg-gray-200" title="Tool Management">
+                        <i data-lucide="users" class="w-5 h-5 text-gray-600"></i>
+                    </button>
+                    <button id="logoutButton" class="px-3 py-1.5 text-sm bg-red-500 text-white rounded-md hover:bg-red-600">ออกจากระบบ</button>
+                </div>
+                <!-- Logged Out View -->
+                <div id="loggedOutView" class="flex items-center space-x-2">
+                    <button id="loginButton" class="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700">เข้าสู่ระบบ</button>
+                    <button id="registerButton" class="px-3 py-1.5 text-sm bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">สมัครสมาชิก</button>
+                </div>
+            </div>
+
+             <div class="flex items-center space-x-1 md:space-x-2 border-l pl-2 md:pl-4 user-controls">
+                <button id="saveButton" title="บันทึกข้อมูล" class="p-2 rounded-full hover:bg-gray-200 transition-colors">
+                    <i data-lucide="save" class="w-5 h-5 text-gray-600"></i>
+                </button>
+                <button id="refreshButton" title="รีเฟรชข้อมูล" class="p-2 rounded-full hover:bg-gray-200 transition-colors">
+                    <i data-lucide="refresh-cw" class="w-5 h-5 text-gray-600"></i>
+                </button>
+             </div>
+             <div class="flex items-center space-x-1 md:space-x-2 border-l pl-2 md:pl-4">
+                <button title="Export to Excel" class="p-2 rounded-full hover:bg-gray-200 transition-colors">
+                    <i data-lucide="file-spreadsheet" class="w-5 h-5 text-green-600"></i>
+                </button>
+                <button title="Export to PDF" class="p-2 rounded-full hover:bg-gray-200 transition-colors">
+                    <i data-lucide="file-text" class="w-5 h-5 text-red-600"></i>
+                </button>
+                <button title="Export as Image" class="p-2 rounded-full hover:bg-gray-200 transition-colors">
+                    <i data-lucide="image" class="w-5 h-5 text-blue-600"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="p-4 md:p-6 lg:p-8">
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <!-- Calendar Controls -->
+            <div class="flex flex-col md:flex-row justify-between items-center mb-4">
+                <div class="flex items-center space-x-2 md:space-x-4">
+                    <button id="prevMonth" class="p-2 rounded-full hover:bg-gray-100 transition-colors">
+                        <i data-lucide="chevron-left" class="w-6 h-6"></i>
+                    </button>
+                    <div id="monthYearSelector" class="relative">
+                        <h2 id="currentMonthYear" class="text-2xl font-bold text-center w-48 md:w-64 cursor-pointer hover:bg-gray-100 rounded-md p-2 transition-colors"></h2>
+                        <div id="selectorDropdowns" class="absolute top-0 left-0 w-full bg-white border rounded-md shadow-lg p-2 flex items-center justify-center space-x-2 z-10 hidden">
+                            <select id="monthSelect" class="p-1 border rounded-md w-full text-sm"></select>
+                            <select id="yearSelect" class="p-1 border rounded-md w-full text-sm"></select>
+                        </div>
+                    </div>
+                    <button id="nextMonth" class="p-2 rounded-full hover:bg-gray-100 transition-colors">
+                        <i data-lucide="chevron-right" class="w-6 h-6"></i>
+                    </button>
+                </div>
+                <button id="todayButton" class="mt-4 md:mt-0 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors text-sm font-semibold">
+                    เดือนปัจจุบัน
+                </button>
+            </div>
+
+            <!-- Calendar Grid -->
+            <div class="calendar-grid border-t border-l border-gray-200">
+                <!-- Day Headers -->
+                <div class="text-center font-semibold py-2 border-r border-b bg-gray-50 text-red-500">อา.</div>
+                <div class="text-center font-semibold py-2 border-r border-b bg-gray-50">จ.</div>
+                <div class="text-center font-semibold py-2 border-r border-b bg-gray-50">อ.</div>
+                <div class="text-center font-semibold py-2 border-r border-b bg-gray-50">พ.</div>
+                <div class="text-center font-semibold py-2 border-r border-b bg-gray-50">พฤ.</div>
+                <div class="text-center font-semibold py-2 border-r border-b bg-gray-50">ศ.</div>
+                <div class="text-center font-semibold py-2 border-r border-b bg-gray-50">ส.</div>
+
+                <!-- Calendar Days will be injected here -->
+                <div id="calendarDays" class="col-span-7 calendar-grid"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modals -->
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 hidden opacity-0 scale-95">
+        <div class="bg-white rounded-lg shadow-xl p-8 w-11/12 md:w-1/3" id="loginModalContent">
+            <h3 class="text-xl font-bold mb-4">เข้าสู่ระบบ</h3>
+            <form id="loginForm">
+                <div class="space-y-4">
+                    <div>
+                        <label for="loginUsername" class="block text-sm font-medium">ชื่อผู้ใช้</label>
+                        <input type="text" id="loginUsername" class="mt-1 block w-full border rounded-md p-2" required>
+                    </div>
+                    <div>
+                        <label for="loginPassword" class="block text-sm font-medium">รหัสผ่าน</label>
+                        <input type="password" id="loginPassword" class="mt-1 block w-full border rounded-md p-2" required>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button type="button" class="close-modal px-4 py-2 bg-gray-200 rounded-md">ยกเลิก</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md">เข้าสู่ระบบ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Register Modal -->
+    <div id="registerModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 hidden opacity-0 scale-95">
+        <div class="bg-white rounded-lg shadow-xl p-8 w-11/12 md:w-1/3" id="registerModalContent">
+            <h3 class="text-xl font-bold mb-4">สมัครสมาชิก</h3>
+            <form id="registerForm">
+                 <div class="space-y-4">
+                    <div>
+                        <label for="registerUsername" class="block text-sm font-medium">ชื่อผู้ใช้</label>
+                        <input type="text" id="registerUsername" class="mt-1 block w-full border rounded-md p-2" required>
+                    </div>
+                    <div>
+                        <label for="registerPassword" class="block text-sm font-medium">รหัสผ่าน</label>
+                        <input type="password" id="registerPassword" class="mt-1 block w-full border rounded-md p-2" required>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button type="button" class="close-modal px-4 py-2 bg-gray-200 rounded-md">ยกเลิก</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md">สมัครสมาชิก</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Tools Modal -->
+    <div id="adminModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 hidden opacity-0 scale-95">
+        <div class="bg-white rounded-lg shadow-xl p-8 w-11/12 md:w-1/2" id="adminModalContent">
+             <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold">Tool Management</h3>
+                <button class="close-modal p-1">&times;</button>
+             </div>
+             <div id="userList" class="space-y-2"></div>
+        </div>
+    </div>
+    
+    <!-- Add/Edit Event Modal -->
+    <div id="eventModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-30 hidden opacity-0 scale-95">
+        <div class="bg-white rounded-lg shadow-xl p-8 w-11/12 md:w-1/2 lg:w-1/3" id="modalContent">
+             <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h3 class="text-xl font-bold">เพิ่ม/แก้ไขนัดหมาย</h3>
+                <button class="close-modal p-1 rounded-full hover:bg-gray-200">&times;</button>
+            </div>
+            <form id="eventForm">
+                <input type="hidden" id="eventId">
+                <input type="hidden" id="eventDate">
+                <p class="mb-4 font-semibold text-indigo-600" id="modalDate"></p>
+                <div class="space-y-4">
+                    <div>
+                        <label for="eventTitle" class="block text-sm font-medium text-gray-700">หัวข้อนัดหมาย <span class="text-red-500">*</span></label>
+                        <input type="text" id="eventTitle" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500" required>
+                    </div>
+                    <div>
+                        <label for="eventLocation" class="block text-sm font-medium text-gray-700">สถานที่</label>
+                        <input type="text" id="eventLocation" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500">
+                         <div class="mt-2 flex items-center">
+                             <input id="showLocation" type="checkbox" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                             <label for="showLocation" class="ml-2 block text-sm text-gray-900">แสดงบนหน้าปฏิทิน</label>
+                         </div>
+                    </div>
+                     <div>
+                        <label for="eventTime" class="block text-sm font-medium text-gray-700">เวลา <span class="text-red-500">*</span></label>
+                        <input type="time" id="eventTime" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500" required>
+                    </div>
+                     <div>
+                        <label for="eventDetails" class="block text-sm font-medium text-gray-700">รายละเอียด</label>
+                        <textarea id="eventDetails" rows="3" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-between items-center">
+                     <button type="button" id="deleteEventButton" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm font-semibold hidden">ลบนัดหมาย</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors text-sm font-semibold">บันทึกนัดหมาย</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- View Event Details Modal -->
+    <div id="viewEventModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-30 hidden opacity-0 scale-95">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-11/12 md:w-1/3 lg:w-1/4" id="viewModalContent">
+            <div class="flex justify-between items-center mb-3 border-b pb-2">
+                <h3 class="text-lg font-bold text-indigo-600">รายละเอียดนัดหมาย</h3>
+                <button class="close-modal p-1 rounded-full hover:bg-gray-200">&times;</button>
+            </div>
+            <div class="space-y-3" id="viewEventDetails">
+                <!-- Details injected here -->
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            
+            // --- DOM Elements ---
+            const body = document.body;
+            const currentMonthYearEl = document.getElementById('currentMonthYear');
+            const calendarDaysEl = document.getElementById('calendarDays');
+            const prevMonthBtn = document.getElementById('prevMonth');
+            const nextMonthBtn = document.getElementById('nextMonth');
+            const todayBtn = document.getElementById('todayButton');
+            
+            const monthYearSelector = document.getElementById('monthYearSelector');
+            const selectorDropdowns = document.getElementById('selectorDropdowns');
+            const monthSelect = document.getElementById('monthSelect');
+            const yearSelect = document.getElementById('yearSelect');
+
+            // Auth Elements
+            const loggedInView = document.getElementById('loggedInView');
+            const loggedOutView = document.getElementById('loggedOutView');
+            const loginButton = document.getElementById('loginButton');
+            const registerButton = document.getElementById('registerButton');
+            const logoutButton = document.getElementById('logoutButton');
+            const adminToolsBtn = document.getElementById('adminToolsBtn');
+            const usernameDisplay = document.getElementById('usernameDisplay');
+            
+            // Modals
+            const allModals = document.querySelectorAll('.modal');
+            const loginModal = document.getElementById('loginModal');
+            const registerModal = document.getElementById('registerModal');
+            const adminModal = document.getElementById('adminModal');
+            const eventModal = document.getElementById('eventModal');
+            const viewEventModal = document.getElementById('viewEventModal');
+
+            // Forms
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            const eventForm = document.getElementById('eventForm');
+
+            // Event-related elements
+            const modalDateEl = document.getElementById('modalDate');
+            const deleteEventButton = document.getElementById('deleteEventButton');
+            const viewEventDetailsEl = document.getElementById('viewEventDetails');
+
+            // Header buttons
+            const saveBtn = document.getElementById('saveButton');
+            const refreshBtn = document.getElementById('refreshButton');
+            const lastUpdatedEl = document.getElementById('lastUpdated');
+
+            // --- State Management ---
+            let currentDate = new Date();
+            let currentUser = null;
+            let allUsersData = {};
+            let events = []; // Events for the current user
+
+            // --- Initialization ---
+            function initializeApp() {
+                loadUsers();
+                checkSession();
+                updateAuthUI();
+                initializeSelectors();
+                syncEvents();
+                lucide.createIcons();
+            }
+
+            // --- Authentication ---
+            function loadUsers() {
+                const data = localStorage.getItem('syncspace_users');
+                if (data) {
+                    allUsersData = JSON.parse(data);
+                } else {
+                    // Pre-configure Admin user
+                    allUsersData = {
+                        'Admin': {
+                            password: 'aiteammeeting',
+                            events: [
+                                { id: 1, date: getFormattedDate(new Date()), title: 'Admin initial meeting', time: '09:00', location: 'HQ', showLocation: true, details: 'Welcome meeting for admin.' }
+                            ]
+                        }
+                    };
+                    localStorage.setItem('syncspace_users', JSON.stringify(allUsersData));
+                }
+            }
+            
+            function saveUsers() {
+                localStorage.setItem('syncspace_users', JSON.stringify(allUsersData));
+            }
+
+            function checkSession() {
+                const user = sessionStorage.getItem('syncspace_user');
+                if (user) {
+                    currentUser = user;
+                }
+            }
+
+            function updateAuthUI() {
+                if (currentUser) {
+                    loggedInView.classList.remove('hidden');
+                    loggedInView.classList.add('flex');
+                    loggedOutView.classList.add('hidden');
+                    usernameDisplay.textContent = currentUser;
+                    body.classList.remove('logged-out');
+                    if (currentUser === 'Admin') {
+                        adminToolsBtn.classList.remove('hidden');
+                    } else {
+                        adminToolsBtn.classList.add('hidden');
+                    }
+                } else {
+                    loggedInView.classList.add('hidden');
+                    loggedOutView.classList.remove('hidden');
+                    body.classList.add('logged-out');
+                    adminToolsBtn.classList.add('hidden');
+                }
+                renderCalendar(); 
+            }
+
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const username = e.target.loginUsername.value;
+                const password = e.target.loginPassword.value;
+                if (allUsersData[username] && allUsersData[username].password === password) {
+                    currentUser = username;
+                    sessionStorage.setItem('syncspace_user', currentUser);
+                    updateAuthUI();
+                    syncEvents();
+                    closeAllModals();
+                    loginForm.reset();
+                } else {
+                    alert('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+                }
+            });
+
+            registerForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const username = e.target.registerUsername.value;
+                const password = e.target.registerPassword.value;
+                if (allUsersData[username]) {
+                    alert('ชื่อผู้ใช้นี้มีอยู่แล้ว');
+                } else if(username.toLowerCase() === 'admin'){
+                    alert('ไม่สามารถใช้ชื่อนี้ได้');
+                }
+                 else {
+                    allUsersData[username] = { password: password, events: [] };
+                    saveUsers();
+                    alert('สมัครสมาชิกสำเร็จ! กรุณาเข้าสู่ระบบ');
+                    closeAllModals();
+                    registerForm.reset();
+                }
+            });
+
+            logoutButton.addEventListener('click', () => {
+                currentUser = null;
+                sessionStorage.removeItem('syncspace_user');
+                events = [];
+                updateAuthUI();
+            });
+
+            // --- Admin Tools ---
+            function renderUserList() {
+                const userList = document.getElementById('userList');
+                userList.innerHTML = '';
+                Object.keys(allUsersData).forEach(username => {
+                    if (username === 'Admin') return;
+                    const userDiv = document.createElement('div');
+                    userDiv.className = 'flex justify-between items-center p-2 border rounded';
+                    userDiv.innerHTML = `
+                        <span>${username}</span>
+                        <button data-user="${username}" class="delete-user-btn p-1 bg-red-100 text-red-600 rounded hover:bg-red-200">
+                           <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    `;
+                    userList.appendChild(userDiv);
+                });
+                lucide.createIcons();
+            }
+
+            adminToolsBtn.addEventListener('click', () => {
+                renderUserList();
+                openModal(adminModal);
+            });
+            
+            document.getElementById('userList').addEventListener('click', (e) => {
+                const deleteBtn = e.target.closest('.delete-user-btn');
+                if (deleteBtn) {
+                    const userToDelete = deleteBtn.dataset.user;
+                    if (confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบผู้ใช้ ${userToDelete}?`)) {
+                        delete allUsersData[userToDelete];
+                        saveUsers();
+                        renderUserList();
+                    }
+                }
+            });
+
+
+            // --- Event Data ---
+            function syncEvents() {
+                if(currentUser && allUsersData[currentUser]){
+                   events = JSON.parse(JSON.stringify(allUsersData[currentUser].events));
+                } else {
+                   // When logged out, maybe show some public events or nothing
+                   const adminEvents = allUsersData['Admin'] ? allUsersData['Admin'].events : [];
+                   events = JSON.parse(JSON.stringify(adminEvents));
+                }
+                renderCalendar();
+                updateLastUpdated();
+            };
+
+            saveBtn.addEventListener('click', () => {
+                if(!currentUser) {
+                    alert("กรุณาเข้าสู่ระบบเพื่อบันทึกข้อมูล");
+                    return;
+                }
+                allUsersData[currentUser].events = JSON.parse(JSON.stringify(events));
+                saveUsers();
+                alert('บันทึกข้อมูลทั้งหมดแล้ว');
+                updateLastUpdated();
+            });
+
+            refreshBtn.addEventListener('click', () => {
+                if(!currentUser) return;
+                if (confirm('ข้อมูลที่ยังไม่บันทึกจะหายไป, ต้องการรีเฟรชหรือไม่?')) {
+                    syncEvents();
+                }
+            });
+            
+            // --- Calendar Rendering ---
+            function getFormattedDate(date, dayOffset = 0) {
+                const newDate = new Date(date);
+                newDate.setDate(newDate.getDate() + dayOffset);
+                return newDate.toISOString().split('T')[0];
+            }
+
+            const renderCalendar = () => {
+                const year = currentDate.getFullYear();
+                const month = currentDate.getMonth();
+
+                const monthName = new Intl.DateTimeFormat('th-TH', { month: 'long', year: 'numeric' }).format(currentDate);
+                currentMonthYearEl.textContent = monthName;
+                calendarDaysEl.innerHTML = '';
+
+                const firstDayOfMonth = new Date(year, month, 1).getDay();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+                for (let i = 0; i < firstDayOfMonth; i++) {
+                    calendarDaysEl.appendChild(document.createElement('div')).className = 'border-r border-b p-2 bg-gray-50';
+                }
+
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const dayEl = document.createElement('div');
+                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    dayEl.className = 'calendar-day border-r border-b p-2 flex flex-col relative transition-colors hover:bg-indigo-50';
+                    dayEl.dataset.date = dateStr;
+
+                    const today = new Date();
+                    const dayNumberDiv = document.createElement('div');
+                    dayNumberDiv.textContent = day;
+                    dayNumberDiv.className = "w-8 h-8 flex items-center justify-center mb-2";
+
+                    if (year === today.getFullYear() && month === today.getMonth() && day === today.getDate()) {
+                        dayNumberDiv.classList.add('bg-indigo-600', 'text-white', 'rounded-full');
+                    }
+                    dayEl.appendChild(dayNumberDiv);
+                    
+                    const eventsContainer = document.createElement('div');
+                    eventsContainer.className = 'day-events flex-grow overflow-y-auto space-y-1';
+                    
+                    const dayEvents = events.filter(e => e.date === dateStr);
+                    dayEvents.sort((a,b) => a.time.localeCompare(b.time)).forEach(event => {
+                        eventsContainer.appendChild(createEventElement(event));
+                    });
+                    dayEl.appendChild(eventsContainer);
+                    
+                    if (currentUser) {
+                        const addEventBtn = document.createElement('button');
+                        addEventBtn.className = 'absolute top-1 right-1 p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity';
+                        addEventBtn.innerHTML = `<i data-lucide="plus-circle" class="w-4 h-4"></i>`;
+                        dayEl.classList.add('group');
+                        dayEl.appendChild(addEventBtn);
+
+                        addEventBtn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            openEventModalForAdd(dateStr);
+                        });
+                        dayEl.addEventListener('click', () => openEventModalForAdd(dateStr));
+                    }
+
+                    calendarDaysEl.appendChild(dayEl);
+                }
+                lucide.createIcons();
+            };
+
+            function createEventElement(event) {
+                const eventEl = document.createElement('div');
+                eventEl.className = 'text-xs bg-blue-100 text-blue-800 p-1 rounded-md cursor-pointer hover:bg-blue-200';
+                
+                let displayText = `• ${event.title}`;
+                if (event.showLocation && event.location) displayText += ` @${event.location}`;
+                displayText += ` ${event.time}`;
+
+                eventEl.textContent = displayText;
+                eventEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openViewModal(event.id);
+                });
+                return eventEl;
+            }
+            
+            // --- Modal Handling ---
+            function openModal(modalEl) {
+                modalEl.classList.remove('hidden');
+                setTimeout(() => {
+                    modalEl.classList.remove('opacity-0', 'scale-95');
+                }, 10);
+            }
+            
+            function closeModal(modalEl) {
+                modalEl.classList.add('opacity-0', 'scale-95');
+                setTimeout(() => modalEl.classList.add('hidden'), 300);
+            }
+            
+            function closeAllModals() {
+                allModals.forEach(modal => closeModal(modal));
+            }
+            
+            document.querySelectorAll('.close-modal').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    closeModal(btn.closest('.modal'));
+                });
+            });
+
+            loginButton.addEventListener('click', () => openModal(loginModal));
+            registerButton.addEventListener('click', () => openModal(registerModal));
+
+            function openEventModalForAdd(dateStr) {
+                if(!currentUser) {
+                    alert("กรุณาเข้าสู่ระบบเพื่อเพิ่มนัดหมาย");
+                    return;
+                }
+                eventForm.reset();
+                const dateObj = new Date(dateStr + 'T00:00:00');
+                modalDateEl.textContent = new Intl.DateTimeFormat('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).format(dateObj);
+                document.getElementById('eventDate').value = dateStr;
+                document.getElementById('eventId').value = '';
+                deleteEventButton.classList.add('hidden');
+                openModal(eventModal);
+            }
+
+            function openEventModalForEdit(eventId) {
+                if(!currentUser) return;
+                const event = events.find(e => e.id === eventId);
+                if (event) {
+                    openEventModalForAdd(event.date); // setup date and open
+                    document.getElementById('eventId').value = event.id;
+                    document.getElementById('eventTitle').value = event.title;
+                    document.getElementById('eventLocation').value = event.location;
+                    document.getElementById('showLocation').checked = event.showLocation;
+                    document.getElementById('eventTime').value = event.time;
+                    document.getElementById('eventDetails').value = event.details;
+                    deleteEventButton.classList.remove('hidden');
+                }
+            }
+            
+            function openViewModal(eventId) {
+                const event = events.find(e => e.id === eventId);
+                if (!event) return;
+                
+                const editButtonHtml = currentUser 
+                    ? `<button id="editFromViewBtn" class="mt-4 w-full text-sm px-4 py-2 bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200 transition-colors font-semibold">แก้ไขนัดหมาย</button>`
+                    : '';
+
+                viewEventDetailsEl.innerHTML = `
+                    <p><strong class="font-semibold">หัวข้อ:</strong> ${event.title}</p>
+                    <p><strong class="font-semibold">วันที่:</strong> ${new Intl.DateTimeFormat('th-TH', { dateStyle: 'full' }).format(new Date(event.date+'T00:00:00'))}</p>
+                    <p><strong class="font-semibold">เวลา:</strong> ${event.time}</p>
+                    ${event.location ? `<p><strong class="font-semibold">สถานที่:</strong> ${event.location}</p>` : ''}
+                    ${event.details ? `<p class="mt-2 pt-2 border-t"><strong class="font-semibold">รายละเอียด:</strong><br>${event.details.replace(/\n/g, '<br>')}</p>` : ''}
+                    ${editButtonHtml}
+                `;
+                
+                if (currentUser) {
+                    document.getElementById('editFromViewBtn').addEventListener('click', function() {
+                        closeAllModals();
+                        openEventModalForEdit(eventId);
+                    });
+                }
+                openModal(viewEventModal);
+            }
+
+            eventForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const id = document.getElementById('eventId').value;
+                const newEvent = {
+                    id: id ? parseInt(id) : Date.now(),
+                    date: document.getElementById('eventDate').value,
+                    title: document.getElementById('eventTitle').value,
+                    location: document.getElementById('eventLocation').value,
+                    showLocation: document.getElementById('showLocation').checked,
+                    time: document.getElementById('eventTime').value,
+                    details: document.getElementById('eventDetails').value,
+                };
+                
+                if (id) {
+                    events = events.map(event => event.id === newEvent.id ? newEvent : event);
+                } else {
+                    events.push(newEvent);
+                }
+                closeAllModals();
+                renderCalendar();
+            });
+
+            deleteEventButton.addEventListener('click', () => {
+                const id = parseInt(document.getElementById('eventId').value);
+                if (confirm('คุณต้องการลบนัดหมายนี้ใช่หรือไม่?')) {
+                    events = events.filter(event => event.id !== id);
+                    closeAllModals();
+                    renderCalendar();
+                }
+            });
+
+            // --- Misc Listeners & Helpers ---
+            const updateLastUpdated = () => {
+                 const now = new Date();
+                 const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false };
+                 lastUpdatedEl.textContent = `อัปเดตล่าสุด: ${new Intl.DateTimeFormat('th-TH', options).format(now)}`;
+            }
+            
+            function initializeSelectors() {
+                const thaiMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+                monthSelect.innerHTML = '';
+                thaiMonths.forEach((month, index) => {
+                    monthSelect.innerHTML += `<option value="${index}">${month}</option>`;
+                });
+                const currentYear = new Date().getFullYear();
+                yearSelect.innerHTML = '';
+                for (let i = currentYear - 10; i <= currentYear + 10; i++) {
+                    yearSelect.innerHTML += `<option value="${i}">${i + 543}</option>`;
+                }
+            }
+            
+             function showSelectors() {
+                monthSelect.value = currentDate.getMonth();
+                yearSelect.value = currentDate.getFullYear();
+                selectorDropdowns.classList.remove('hidden');
+                currentMonthYearEl.classList.add('hidden');
+            }
+
+            function hideSelectors() {
+                selectorDropdowns.classList.add('hidden');
+                currentMonthYearEl.classList.remove('hidden');
+            }
+            
+            function handleDateSelectionChange() {
+                const newYear = parseInt(yearSelect.value);
+                const newMonth = parseInt(monthSelect.value);
+                if (!isNaN(newYear) && !isNaN(newMonth)) {
+                    currentDate = new Date(newYear, newMonth, 1);
+                    renderCalendar();
+                    hideSelectors();
+                }
+            }
+
+            prevMonthBtn.addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); });
+            nextMonthBtn.addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); });
+            todayBtn.addEventListener('click', () => { currentDate = new Date(); renderCalendar(); });
+            
+            currentMonthYearEl.addEventListener('click', showSelectors);
+            monthSelect.addEventListener('change', handleDateSelectionChange);
+            yearSelect.addEventListener('change', handleDateSelectionChange);
+             document.addEventListener('click', (e) => {
+                if (!monthYearSelector.contains(e.target)) {
+                    hideSelectors();
+                }
+            });
+            
+            // --- Run App ---
+            initializeApp();
+        });
+    </script>
+</body>
+</html>
+

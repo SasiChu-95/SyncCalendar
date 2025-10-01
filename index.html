@@ -49,6 +49,14 @@
             color: #4f46e5;
             box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
         }
+        .timeline-grid {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+        }
+        .timeline-chart {
+            display: grid;
+            overflow-x: auto;
+        }
     </style>
 </head>
 <body class="text-gray-800">
@@ -125,11 +133,11 @@
                     <i data-lucide="chevron-right" class="w-6 h-6 text-gray-500"></i>
                 </button>
             </div>
-            <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-4 mt-4 md:mt-0">
                 <!-- View Switcher -->
                 <div class="flex rounded-lg bg-gray-200 p-1">
                     <button id="calendarViewBtn" class="px-3 py-1 text-sm font-semibold rounded-md view-btn-active">Calendar</button>
-                    <button id="ganttViewBtn" class="px-3 py-1 text-sm font-semibold rounded-md text-gray-600">Gantt Chart</button>
+                    <button id="timelineViewBtn" class="px-3 py-1 text-sm font-semibold rounded-md text-gray-600">Timeline</button>
                 </div>
                 <button id="todayButton" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-semibold">
                     เดือนปัจจุบัน
@@ -153,11 +161,11 @@
             </div>
         </div>
 
-        <!-- Gantt Chart View -->
-        <div id="ganttViewWrapper" class="hidden">
+        <!-- Timeline View -->
+        <div id="timelineViewWrapper" class="hidden">
             <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-                <div id="ganttChartContainer" class="space-y-2 max-h-[60vh] overflow-y-auto">
-                    <!-- Gantt chart rows will be injected here -->
+                <div id="timelineContainer" class="max-h-[65vh] overflow-auto">
+                    <!-- Timeline content will be injected here -->
                 </div>
             </div>
         </div>
@@ -323,43 +331,62 @@
 
             // View Switcher Elements
             const calendarViewBtn = document.getElementById('calendarViewBtn');
-            const ganttViewBtn = document.getElementById('ganttViewBtn');
+            const timelineViewBtn = document.getElementById('timelineViewBtn');
             const calendarViewWrapper = document.getElementById('calendarViewWrapper');
-            const ganttViewWrapper = document.getElementById('ganttViewWrapper');
-            const ganttChartContainer = document.getElementById('ganttChartContainer');
+            const timelineViewWrapper = document.getElementById('timelineViewWrapper');
+            const timelineContainer = document.getElementById('timelineContainer');
 
+            const USER_COLORS = ['#6366f1', '#ec4899', '#22c55e', '#f97316', '#0ea5e9', '#8b5cf6', '#d946ef'];
 
             let currentDate = new Date();
             let pickerCurrentYear = currentDate.getFullYear();
             let currentUser = null;
             let allUsersData = {};
             let events = [];
-            let currentView = 'calendar'; // 'calendar' or 'gantt'
+            let currentView = 'calendar'; // 'calendar' or 'timeline'
 
             const initializeApp = () => {
-                loadUsers();
+                loadData();
                 checkSession();
                 updateAuthUI();
-                syncEvents();
+                renderCurrentView();
                 lucide.createIcons();
             };
 
-            const loadUsers = () => {
-                const data = localStorage.getItem('syncspace_users');
-                if (data) {
-                    allUsersData = JSON.parse(data);
+            const loadData = () => {
+                const users = localStorage.getItem('syncspace_users');
+                const sharedEvents = localStorage.getItem('syncspace_events');
+
+                if (users) {
+                    allUsersData = JSON.parse(users);
                 } else {
                     allUsersData = {
-                        'Admin': {
-                            password: 'aiteammeeting',
-                            events: [{ id: 1, date: getFormattedDate(new Date()), title: 'Project Kick-off', time: '10:00', endTime: '11:30', location: 'Main Conference Room', showLocation: true, details: 'Initial meeting for the new AI project.' }]
-                        }
+                        'Admin': { password: 'aiteammeeting', color: USER_COLORS[0] }
                     };
-                    localStorage.setItem('syncspace_users', JSON.stringify(allUsersData));
                 }
+
+                if (sharedEvents) {
+                    events = JSON.parse(sharedEvents);
+                } else {
+                     events = [{ 
+                         id: 1, 
+                         date: getFormattedDate(new Date()), 
+                         title: 'Project Kick-off', 
+                         time: '10:00', 
+                         endTime: '11:30', 
+                         location: 'Main Conference Room', 
+                         showLocation: true, 
+                         details: 'Initial meeting for the new AI project.',
+                         createdBy: 'Admin'
+                    }];
+                }
+                saveData();
             };
             
-            const saveUsers = () => localStorage.setItem('syncspace_users', JSON.stringify(allUsersData));
+            const saveData = () => {
+                localStorage.setItem('syncspace_users', JSON.stringify(allUsersData));
+                localStorage.setItem('syncspace_events', JSON.stringify(events));
+            };
 
             const checkSession = () => {
                 const user = sessionStorage.getItem('syncspace_user');
@@ -391,7 +418,6 @@
                     currentUser = username;
                     sessionStorage.setItem('syncspace_user', currentUser);
                     updateAuthUI();
-                    syncEvents();
                     closeAllModals();
                     loginForm.reset();
                 } else {
@@ -408,8 +434,12 @@
                 } else if (username.toLowerCase() === 'admin') {
                     alert('ไม่สามารถใช้ชื่อนี้ได้');
                 } else {
-                    allUsersData[username] = { password: password, events: [] };
-                    saveUsers();
+                    const userCount = Object.keys(allUsersData).length;
+                    allUsersData[username] = { 
+                        password: password, 
+                        color: USER_COLORS[userCount % USER_COLORS.length] 
+                    };
+                    saveData();
                     alert('สมัครสมาชิกสำเร็จ! กรุณาเข้าสู่ระบบ');
                     closeAllModals();
                     registerForm.reset();
@@ -419,7 +449,6 @@
             logoutButton.addEventListener('click', () => {
                 currentUser = null;
                 sessionStorage.removeItem('syncspace_user');
-                events = [];
                 updateAuthUI();
             });
 
@@ -447,40 +476,35 @@
                     const userToDelete = deleteBtn.dataset.user;
                     if (confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบผู้ใช้ ${userToDelete}?`)) {
                         delete allUsersData[userToDelete];
-                        saveUsers();
+                        saveData();
                         renderUserList();
                     }
                 }
             });
 
-            const syncEvents = () => {
-                const sourceEvents = (currentUser && allUsersData[currentUser]) ? allUsersData[currentUser].events : (allUsersData['Admin'] ? allUsersData['Admin'].events : []);
-                events = JSON.parse(JSON.stringify(sourceEvents));
-                renderCurrentView();
-                updateLastUpdated();
-            };
-
             saveBtn.addEventListener('click', () => {
                 if(!currentUser) return alert("กรุณาเข้าสู่ระบบเพื่อบันทึกข้อมูล");
-                allUsersData[currentUser].events = JSON.parse(JSON.stringify(events));
-                saveUsers();
+                saveData();
                 alert('บันทึกข้อมูลทั้งหมดแล้ว');
                 updateLastUpdated();
             });
 
             refreshBtn.addEventListener('click', () => {
-                if(!currentUser) return;
-                if (confirm('ข้อมูลที่ยังไม่บันทึกจะหายไป, ต้องการรีเฟรชหรือไม่?')) syncEvents();
+                if (confirm('ข้อมูลที่ยังไม่บันทึกจะหายไป, ต้องการรีเฟรชหรือไม่?')) {
+                    loadData();
+                    renderCurrentView();
+                }
             });
             
             const getFormattedDate = date => date.toISOString().split('T')[0];
 
             // --- View Rendering Logic ---
             const renderCurrentView = () => {
+                updateLastUpdated();
                 if (currentView === 'calendar') {
                     renderCalendar();
                 } else {
-                    renderGanttChart();
+                    renderTimeline();
                 }
             }
 
@@ -535,11 +559,18 @@
                 lucide.createIcons();
             };
 
-            const renderGanttChart = () => {
-                ganttChartContainer.innerHTML = '';
+            const renderTimeline = () => {
                 const year = currentDate.getFullYear();
                 const month = currentDate.getMonth();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
 
+                let headerHtml = '<div class="sticky top-0 z-10 grid grid-cols-12 bg-gray-50 border-b-2 border-gray-200"><div class="col-span-3 p-2 font-semibold">หัวข้อ</div><div class="col-span-9 grid" style="grid-template-columns: repeat(' + daysInMonth + ', minmax(40px, 1fr));">';
+                for(let i = 1; i <= daysInMonth; i++) {
+                    headerHtml += `<div class="text-center text-sm font-medium p-2 border-l border-gray-200">${i}</div>`;
+                }
+                headerHtml += '</div></div>';
+
+                let bodyHtml = '';
                 const eventsForMonth = events
                     .filter(event => {
                         const eventDate = new Date(event.date + 'T00:00:00');
@@ -548,60 +579,63 @@
                     .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
                 
                 if (eventsForMonth.length === 0) {
-                    ganttChartContainer.innerHTML = '<p class="text-gray-500 text-center py-8">ไม่มีนัดหมายในเดือนนี้</p>';
-                    return;
+                     timelineContainer.innerHTML = '<p class="text-gray-500 text-center py-8">ไม่มีนัดหมายในเดือนนี้</p>';
+                     return;
                 }
-
+                
                 eventsForMonth.forEach(event => {
-                    const eventDate = new Date(event.date + 'T00:00:00');
-                    const formattedDate = new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short' }).format(eventDate);
-                    let timeText = event.endTime ? `${event.time} - ${event.endTime}` : event.time;
-                    
-                    const row = document.createElement('div');
-                    row.className = 'grid grid-cols-12 gap-4 items-center p-3 border-b border-gray-100';
-                    row.innerHTML = `
-                        <div class="col-span-2 font-semibold text-gray-600">${formattedDate}</div>
-                        <div class="col-span-2 text-sm text-gray-500">${timeText}</div>
-                        <div class="col-span-8 text-sm font-semibold truncate">${event.title}</div>
-                    `;
-                    row.onclick = () => openViewModal(event.id);
-                    row.className += ' cursor-pointer hover:bg-gray-100 rounded-lg';
-                    ganttChartContainer.appendChild(row);
+                    const eventDay = new Date(event.date + 'T00:00:00').getDate();
+                    const userColor = allUsersData[event.createdBy]?.color || '#a5b4fc';
+
+                    bodyHtml += `<div class="grid grid-cols-12 border-b border-gray-100 items-center hover:bg-gray-50 cursor-pointer" onclick="openViewModal(${event.id})">`;
+                    bodyHtml += `<div class="col-span-3 p-2 text-sm font-semibold truncate" title="${event.title}">${event.title}</div>`;
+                    bodyHtml += `<div class="col-span-9 grid h-full" style="grid-template-columns: repeat(${daysInMonth}, minmax(40px, 1fr));">`;
+                    bodyHtml += `<div class="h-full py-2" style="grid-column-start: ${eventDay};">`;
+                    bodyHtml += `<div class="h-full rounded-md text-white text-xs px-2 flex items-center" style="background-color: ${userColor}" title="${event.title} (${event.createdBy})">${event.createdBy}</div>`;
+                    bodyHtml += `</div>`;
+                    bodyHtml += `</div></div>`;
                 });
+                
+                timelineContainer.innerHTML = headerHtml + bodyHtml;
+                // Dirty hack to make onclick work on dynamically generated html
+                window.openViewModal = openViewModal;
             };
 
             const setView = (view) => {
                 currentView = view;
                 if (view === 'calendar') {
                     calendarViewWrapper.classList.remove('hidden');
-                    ganttViewWrapper.classList.add('hidden');
-                    calendarViewBtn.classList.add('view-btn-active');
+                    timelineViewWrapper.classList.add('hidden');
+                    calendarViewBtn.classList.add('view-btn-active', 'text-indigo-600');
                     calendarViewBtn.classList.remove('text-gray-600');
-                    ganttViewBtn.classList.remove('view-btn-active');
-                    ganttViewBtn.classList.add('text-gray-600');
+                    timelineViewBtn.classList.remove('view-btn-active', 'text-indigo-600');
+                    timelineViewBtn.classList.add('text-gray-600');
                 } else {
                     calendarViewWrapper.classList.add('hidden');
-                    ganttViewWrapper.classList.remove('hidden');
-                    ganttViewBtn.classList.add('view-btn-active');
-                    ganttViewBtn.classList.remove('text-gray-600');
-                    calendarViewBtn.classList.remove('view-btn-active');
+                    timelineViewWrapper.classList.remove('hidden');
+                    timelineViewBtn.classList.add('view-btn-active', 'text-indigo-600');
+                    timelineViewBtn.classList.remove('text-gray-600');
+                    calendarViewBtn.classList.remove('view-btn-active', 'text-indigo-600');
                     calendarViewBtn.classList.add('text-gray-600');
                 }
                 renderCurrentView();
             };
 
             calendarViewBtn.addEventListener('click', () => setView('calendar'));
-            ganttViewBtn.addEventListener('click', () => setView('gantt'));
+            timelineViewBtn.addEventListener('click', () => setView('timeline'));
 
 
             const createEventElement = (event) => {
                 const eventEl = document.createElement('div');
-                eventEl.className = 'event-item text-xs bg-indigo-100 text-indigo-800 p-1 rounded-md cursor-pointer hover:bg-indigo-200 flex justify-between items-center';
+                const userColor = allUsersData[event.createdBy]?.color || '#d1d5db';
+                eventEl.className = 'event-item text-xs p-1 rounded-md cursor-pointer flex justify-between items-center';
+                eventEl.style.backgroundColor = `${userColor}20`; // a bit of opacity
+                eventEl.style.borderLeft = `3px solid ${userColor}`;
                 
                 const textSpan = document.createElement('span');
-                textSpan.className = 'truncate';
-                let timeText = event.endTime ? `${event.time} - ${event.endTime}` : event.time;
-                textSpan.textContent = `${event.title} (${timeText})`;
+                textSpan.className = 'truncate pl-1';
+                textSpan.style.color = `${userColor}`;
+                textSpan.textContent = `${event.title}`;
                 eventEl.appendChild(textSpan);
 
                 eventEl.onclick = (e) => { e.stopPropagation(); openViewModal(event.id); };
@@ -671,6 +705,7 @@
 
                 viewEventDetailsEl.innerHTML = `
                     <p><strong>หัวข้อ:</strong> ${event.title}</p>
+                    <p><strong>ผู้สร้าง:</strong> ${event.createdBy}</p>
                     <p><strong>วันที่:</strong> ${new Intl.DateTimeFormat('th-TH', { dateStyle: 'full' }).format(new Date(event.date+'T00:00:00'))}</p>
                     <p><strong>เวลา:</strong> ${timeText}</p>
                     ${event.location ? `<p><strong>สถานที่:</strong> ${event.location}</p>` : ''}
@@ -686,6 +721,7 @@
 
             eventForm.addEventListener('submit', (e) => {
                 e.preventDefault();
+                if(!currentUser) return;
                 const id = document.getElementById('eventId').value;
                 const newEvent = {
                     id: id ? parseInt(id) : Date.now(),
@@ -694,8 +730,9 @@
                     location: document.getElementById('eventLocation').value,
                     showLocation: document.getElementById('showLocation').checked,
                     time: document.getElementById('eventTime').value,
-                    endTime: document.getElementById('eventEndTime').value, // Added
+                    endTime: document.getElementById('eventEndTime').value,
                     details: document.getElementById('eventDetails').value,
+                    createdBy: currentUser
                 };
                 
                 if (id) events = events.map(event => event.id === newEvent.id ? newEvent : event);

@@ -260,10 +260,11 @@
                     <div>
                         <label for="eventLocation" class="block text-sm font-medium text-gray-700">สถานที่</label>
                         <input type="text" id="eventLocation" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500">
-                         <div class="mt-2 flex items-center">
-                             <input id="showLocation" type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
-                             <label for="showLocation" class="ml-2 block text-sm text-gray-900">แสดงบนหน้าปฏิทิน</label>
-                         </div>
+                    </div>
+
+                    <div>
+                        <label for="eventLink" class="block text-sm font-medium text-gray-700">ลิงก์การประชุม</label>
+                        <input type="url" id="eventLink" placeholder="https://meetings.example.com/..." class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500">
                     </div>
                      
                      <div>
@@ -413,7 +414,7 @@
                          time: '10:00', 
                          endTime: '11:30', 
                          location: 'Main Conference Room', 
-                         showLocation: true, 
+                         link: 'https://meet.google.com',
                          details: 'Initial meeting for the new AI project.',
                          createdBy: 'Admin'
                     }];
@@ -624,12 +625,13 @@
                 eventsForMonth.forEach(event => {
                     const eventDay = new Date(event.date + 'T00:00:00').getDate();
                     const userColor = allUsersData[event.createdBy]?.color || '#a5b4fc';
+                    const timeText = event.endTime ? `${event.time}-${event.endTime}` : event.time;
 
                     bodyHtml += `<div class="grid grid-cols-12 border-b border-gray-100 items-center hover:bg-gray-50 cursor-pointer" onclick="openViewModal(${event.id})">`;
                     bodyHtml += `<div class="col-span-3 p-2 text-sm font-semibold truncate" title="${event.title}">${event.title}</div>`;
                     bodyHtml += `<div class="col-span-9 grid h-full" style="grid-template-columns: repeat(${daysInMonth}, minmax(40px, 1fr));">`;
                     bodyHtml += `<div class="h-full py-2" style="grid-column-start: ${eventDay};">`;
-                    bodyHtml += `<div class="h-full rounded-md text-white text-xs px-2 flex items-center" style="background-color: ${userColor}" title="${event.title} (${event.createdBy})">${event.createdBy}</div>`;
+                    bodyHtml += `<div class="h-full rounded-md text-white text-xs px-2 flex items-center justify-center" style="background-color: ${userColor}" title="${event.title} (${event.createdBy})">${timeText}</div>`;
                     bodyHtml += `</div>`;
                     bodyHtml += `</div></div>`;
                 });
@@ -747,6 +749,7 @@
                     <p><strong>วันที่:</strong> ${new Intl.DateTimeFormat('th-TH', { dateStyle: 'full' }).format(new Date(event.date+'T00:00:00'))}</p>
                     <p><strong>เวลา:</strong> ${timeText}</p>
                     ${event.location ? `<p><strong>สถานที่:</strong> ${event.location}</p>` : ''}
+                    ${event.link ? `<p><strong>ลิงก์:</strong> <a href="${event.link}" target="_blank" class="text-indigo-600 hover:underline break-all">${event.link}</a></p>` : ''}
                     ${event.details ? `<p class="mt-2 pt-2 border-t border-gray-200"><strong>รายละเอียด:</strong><br>${event.details.replace(/\n/g, '<br>')}</p>` : ''}
                     ${editButtonHtml}
                 `;
@@ -766,7 +769,7 @@
                     date: document.getElementById('eventDate').value,
                     title: document.getElementById('eventTitle').value,
                     location: document.getElementById('eventLocation').value,
-                    showLocation: document.getElementById('showLocation').checked,
+                    link: document.getElementById('eventLink').value,
                     time: document.getElementById('eventTime').value,
                     endTime: document.getElementById('eventEndTime').value,
                     details: document.getElementById('eventDetails').value,

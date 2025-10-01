@@ -724,15 +724,23 @@
             };
 
             const openEventModalForEdit = (eventId) => {
-                if(!currentUser) return;
+                if (!currentUser) return;
                 const event = events.find(e => e.id === eventId);
                 if (event) {
-                    openEventModalForAdd(event.date); 
-                    Object.keys(event).forEach(key => {
-                        const el = document.getElementById(`event${key.charAt(0).toUpperCase() + key.slice(1)}`);
-                        if (el) el.type === 'checkbox' ? el.checked = event[key] : el.value = event[key];
-                    });
+                    eventForm.reset();
+                    modalDateEl.textContent = new Intl.DateTimeFormat('th-TH', { dateStyle: 'full' }).format(new Date(event.date + 'T00:00:00'));
+                    
+                    document.getElementById('eventId').value = event.id;
+                    document.getElementById('eventDate').value = event.date;
+                    document.getElementById('eventTitle').value = event.title || '';
+                    document.getElementById('eventTime').value = event.time || '';
+                    document.getElementById('eventEndTime').value = event.endTime || '';
+                    document.getElementById('eventLocation').value = event.location || '';
+                    document.getElementById('eventLink').value = event.link || '';
+                    document.getElementById('eventDetails').value = event.details || '';
+                    
                     deleteEventButton.classList.remove('hidden');
+                    openModal(eventModal);
                 }
             };
             
@@ -776,8 +784,11 @@
                     createdBy: currentUser
                 };
                 
-                if (id) events = events.map(event => event.id === newEvent.id ? newEvent : event);
-                else events.push(newEvent);
+                if (id) {
+                    events = events.map(event => event.id === newEvent.id ? newEvent : event);
+                } else {
+                    events.push(newEvent);
+                }
                 closeAllModals();
                 renderCurrentView();
             });
